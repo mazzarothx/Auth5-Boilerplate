@@ -1,0 +1,18 @@
+version: "3.7"
+
+services:
+  db-v5guide:
+    image: postgres:alpine
+    ports:
+      - 5432:5432
+    container_name: "db-v5guide"
+    restart: always
+    environment:
+      - POSTGRES_USER=v5user
+      - POSTGRES_PASSWORD=v5pass
+      - POSTGRES_DB=mydb
+    volumes:
+      - database-v5guide:/var/lib/postgresql/data
+
+volumes:
+  database-v5guide:
