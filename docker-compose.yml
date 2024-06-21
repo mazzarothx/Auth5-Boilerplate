@@ -16,3 +16,7 @@ services:
 
 volumes:
   database-[ YOUR DATABASE NAME HERE *** ]:
+
+  # Preencher os campos
+  # Verificar se a porta ja esta sendo utilizada e modificar para outra  ex: 5433:5432
+  # docker-compose up -d
