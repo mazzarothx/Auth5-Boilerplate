@@ -1,39 +1,31 @@
-"use server";
+"use server"
 
-import * as z from "zod";
-import { AuthError } from "next-auth";
+import * as z from "zod"
+import { AuthError } from "next-auth"
 
-import { db } from "@/lib/db";
-import { signIn } from "@/auth";
-import { LoginSchema } from "@/schemas";
-import { getUserByEmail } from "@/data/user";
-import { getTwoFactorTokenByEmail } from "@/data/two-factor-token";
-import { 
-  sendVerificationEmail,
-  sendTwoFactorTokenEmail,
-} from "@/lib/mail";
-import { DEFAULT_LOGIN_REDIRECT } from "@/routes";
-import { 
-  generateVerificationToken,
-  generateTwoFactorToken
-} from "@/lib/tokens";
-import { 
-  getTwoFactorConfirmationByUserId
-} from "@/data/two-factor-confirmation";
+import { db } from "@/lib/db"
+import { signIn } from "@/auth"
+import { LoginSchema } from "@/schemas"
+import { getUserByEmail } from "@/data/user"
+import { getTwoFactorTokenByEmail } from "@/data/two-factor-token"
+import { sendVerificationEmail, sendTwoFactorTokenEmail } from "@/lib/mail"
+import { DEFAULT_LOGIN_REDIRECT } from "@/routes"
+import { generateVerificationToken, generateTwoFactorToken } from "@/lib/tokens"
+import { getTwoFactorConfirmationByUserId } from "@/data/two-factor-confirmation"
 
 export const login = async (
   values: z.infer<typeof LoginSchema>,
-  callbackUrl?: string | null,
+  callbackUrl?: string | null
 ) => {
-  const validatedFields = LoginSchema.safeParse(values);
+  const validatedFields = LoginSchema.safeParse(values)
 
   if (!validatedFields.success) {
-    return { error: "Invalid fields!" };
+    return { error: "Invalid fields!" }
   }
 
-  const { email, password, code } = validatedFields.data;
+  const { email, password, code } = validatedFields.data
 
-  const existingUser = await getUserByEmail(email);
+  const existingUser = await getUserByEmail(email)
 
   if (!existingUser || !existingUser.email || !existingUser.password) {
     return { error: "Email does not exist!" }
@@ -41,64 +33,59 @@ export const login = async (
 
   if (!existingUser.emailVerified) {
     const verificationToken = await generateVerificationToken(
-      existingUser.email,
-    );
+      existingUser.email
+    )
 
     await sendVerificationEmail(
       verificationToken.email,
-      verificationToken.token,
-    );
+      verificationToken.token
+    )
 
-    return { success: "Confirmation email sent!" };
+    return { success: "Confirmation email sent!" }
   }
 
   if (existingUser.isTwoFactorEnabled && existingUser.email) {
     if (code) {
-      const twoFactorToken = await getTwoFactorTokenByEmail(
-        existingUser.email
-      );
+      const twoFactorToken = await getTwoFactorTokenByEmail(existingUser.email)
 
       if (!twoFactorToken) {
-        return { error: "Invalid code!" };
+        return { error: "Invalid code!" }
       }
 
       if (twoFactorToken.token !== code) {
-        return { error: "Invalid code!" };
+        return { error: "Invalid code!" }
       }
 
-      const hasExpired = new Date(twoFactorToken.expires) < new Date();
+      const hasExpired = new Date(twoFactorToken.expires) < new Date()
 
       if (hasExpired) {
-        return { error: "Code expired!" };
+        return { error: "Code expired!" }
       }
 
       await db.twoFactorToken.delete({
-        where: { id: twoFactorToken.id }
-      });
+        where: { id: twoFactorToken.id },
+      })
 
       const existingConfirmation = await getTwoFactorConfirmationByUserId(
         existingUser.id
-      );
+      )
 
       if (existingConfirmation) {
         await db.twoFactorConfirmation.delete({
-          where: { id: existingConfirmation.id }
-        });
+          where: { id: existingConfirmation.id },
+        })
       }
 
       await db.twoFactorConfirmation.create({
         data: {
           userId: existingUser.id,
-        }
-      });
+        },
+      })
     } else {
       const twoFactorToken = await generateTwoFactorToken(existingUser.email)
-      await sendTwoFactorTokenEmail(
-        twoFactorToken.email,
-        twoFactorToken.token,
-      );
+      await sendTwoFactorTokenEmail(twoFactorToken.email, twoFactorToken.token)
 
-      return { twoFactor: true };
+      return { twoFactor: true }
     }
   }
 
@@ -118,6 +105,30 @@ export const login = async (
       }
     }
 
-    throw error;
+    throw error
   }
-};
+}
+
+/**
+ * Esta função `login` é responsável por lidar com o login do usuário.
+ *
+ * Ela primeiro verifica se o usuário existe no banco de dados e se a senha
+ * está correta. Depois disso, ela verifica se o usuário possui autenticação
+ * de dois fatores ativada.
+ *
+ * Se a autenticação de dois fatores estiver ativada, ela gera um token único
+ * para o usuário e o envia por email. Em seguida, ela cria um registro no banco
+ * de dados para confirmar a autenticação de dois fatores.
+ *
+ * Se a autenticação de dois fatores não estiver ativada, ela gera um token único
+ * para o usuário e o envia por email. Em seguida, ela redireciona o usuário para
+ * a página de autenticação de dois fatores.
+ *
+ * Se tudo ocorrer bem, a função faz o login do usuário usando o pacote `next-auth`.
+ *
+ * Se o login falhar, a função retorna uma mensagem de erro.
+ *
+ * @param {Object} values - Um objeto contendo os campos de login (email e senha).
+ * @param {string} [callbackUrl] - Uma string opcional que representa a URL de redirecionamento após o login.
+ * @return {Promise<Object>} Um objeto contendo informações sobre o resultado do login.
+ */
